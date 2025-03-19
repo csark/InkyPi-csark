@@ -1,0 +1,21 @@
+{% extends "plugin.html" %}
+
+{% block content %}
+<div class="website-container">
+    {% if plugin_settings.show_header %}
+    <div class="website-header">
+        <div class="website-url">{{ url }}</div>
+    </div>
+    {% endif %}
+    
+    <div class="website-content" style="transform: scale({{ plugin_settings.content_scale / 100 }});">
+        {{ processed_html|safe }}
+    </div>
+    
+    {% if plugin_settings.show_footer %}
+    <div class="website-footer">
+        <div class="page-number">Rendered on {{ current_datetime }}</div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
