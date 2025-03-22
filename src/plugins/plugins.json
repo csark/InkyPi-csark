@@ -31,8 +31,8 @@
         "class": "Weather"
     },
     {
-        "display_name": "Website Renderer",
-        "id": "website_renderer",
-        "class": "WebsiteRenderer"
+        "display_name": "URL Renderer",
+        "id": "url_renderer",
+        "class": "URLRenderer"
     }
 ]
