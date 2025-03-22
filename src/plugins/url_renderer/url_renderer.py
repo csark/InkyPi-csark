@@ -10,13 +10,11 @@ import subprocess
 import tempfile
 import os
 from PIL import Image
-import requests
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
 class URLRenderer(BasePlugin):
-
 
     def generate_image(self, settings, device_config):
         """Generates a static image from a URL."""
@@ -38,14 +36,12 @@ class URLRenderer(BasePlugin):
         if device_config.get_config("orientation") == "vertical":
             dimensions = dimensions[::-1]
         
-        # Optional additional settings
-        zoom_level = settings.get('zoomLevel', '1.0')
-        capture_full_page = settings.get('captureFullPage') == 'true'
+        # Optional zoom level setting
+        zoom_level = settings.get('zoomLevel', '0.5')
         
         # Screenshot options
         options = {
-            'zoom': zoom_level,
-            'full_page': capture_full_page
+            'zoom': zoom_level
         }
         
         try:
@@ -62,9 +58,16 @@ class URLRenderer(BasePlugin):
         if options is None:
             options = {}
         
-        width, height = dimensions
-        zoom = options.get('zoom', '1.0')
-        full_page = options.get('full_page', False)
+        base_width, base_height = dimensions
+        zoom = float(options.get('zoom', '0.5'))  # Default to 50% zoom
+        
+        # Scale dimensions inversely to the zoom factor
+        # For zoom 0.5 (50%), we want 2x the dimensions to show more content
+        scaled_width = int(base_width / zoom)
+        scaled_height = int(base_height / zoom)
+        
+        # Mobile user agent for better responsive display
+        mobile_user_agent = "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"
         
         image = None
         try:
@@ -76,16 +79,12 @@ class URLRenderer(BasePlugin):
             command = [
                 "chromium-browser", url, "--headless=old",
                 f"--screenshot={img_file_path}", 
-                f"--window-size={width},{height}",
+                f"--window-size={scaled_width},{scaled_height}",
+                f"--user-agent={mobile_user_agent}",
                 "--no-sandbox", "--disable-gpu", 
                 "--disable-software-rasterizer",
-                "--disable-dev-shm-usage", "--hide-scrollbars",
-                f"--force-device-scale-factor={zoom}"
+                "--disable-dev-shm-usage", "--hide-scrollbars"
             ]
-            
-            # Add full-page screenshot option if requested
-            if full_page:
-                command.append("--force-viewport-sizing")
             
             # Run the command
             result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
@@ -99,10 +98,9 @@ class URLRenderer(BasePlugin):
             # Load the image using PIL
             image = Image.open(img_file_path)
             
-            # For full page screenshots, we need to resize to fit the display
-            if full_page:
-                # Resize image while preserving aspect ratio
-                image = self._resize_full_page(image, dimensions)
+            # Resize back to the original dimensions if zoom is not 1.0
+            if zoom != 1.0:
+                image = image.resize((base_width, base_height), Image.LANCZOS)
             
             # Cleanup temp file
             os.remove(img_file_path)
@@ -111,22 +109,3 @@ class URLRenderer(BasePlugin):
             logger.error(f"Failed to take webpage screenshot: {str(e)}")
         
         return image
-    
-    def _resize_full_page(self, image, dimensions):
-        """Resize a full-page screenshot to fit display dimensions."""
-        img_width, img_height = image.size
-        desired_width, desired_height = dimensions
-        
-        # Calculate ratios
-        width_ratio = desired_width / img_width
-        height_ratio = desired_height / img_height
-        
-        # Use the smaller ratio to ensure image fits within display
-        ratio = min(width_ratio, height_ratio)
-        
-        # Calculate new dimensions
-        new_width = int(img_width * ratio)
-        new_height = int(img_height * ratio)
-        
-        # Resize the image
-        return image.resize((new_width, new_height), Image.LANCZOS)
